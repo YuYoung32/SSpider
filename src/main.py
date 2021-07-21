@@ -18,7 +18,7 @@ def main():
 # 详情链接
 findLink = re.compile(r'<a href="(.*?)">')  # 正则表达式，item链接
 # 影片图片
-findImgSrc = re.compile(r'<img.*src=(.*?)img"', re.S)  # 忽略换行
+findImgSrc = re.compile(r'<img.*src="(.*?)"', re.S)  # 忽略换行
 # 影片片名
 findTitle = re.compile(r'<span class="title">(.*)</span>')
 # 影片评分
@@ -28,7 +28,7 @@ findJudge = re.compile(r'<span>(\d*)人评价</span>')
 # 一句话评价
 findInq = re.compile(r'<span class="inq">(.*)</span>')
 # 影片相关内容
-findDetail = re.compile(r'<p class=""><(.*)/p>', re.S)
+findDetail = re.compile(r'<p class="">(.*?)</p>', re.S)
 
 
 # endregion
@@ -56,56 +56,37 @@ def askURL(url):
     return html
 
 
-def getData(baseurl):
+def normalize(str):
     """
-    爬取网页
-    @param baseurl:
-    @return:
+    规范化数据，去除句号，连续空格等
+    Args:
+        str: a string
+
+    Returns: a normalized string
+
     """
-    datalist = []
-    # 共10*25条
-    for i in range(0, 10):
-        url = baseurl + str(i * 25)
-        html = askURL(url)
-        # 解析html
-        soup = BeautifulSoup(html, "html.parser")
-        for item in soup.find_all('div', {"class": "item"}):
-            item = str(item)
-            link = re.findall(findLink, item)[0]  # 找到每部影片唯一的详情链接
-            imgSrc = re.findall(findImgSrc, item)[0]
-            titles = re.findall(findTitle, item)
-            rating = re.findall(findRating, item)[0]
-            judgeNum = re.findall(findRating, item)[0]
-            inq = re.findall(findInq, item)
-            detail = re.findall(findDetail, item)[0]
-            datalist.append(putIntoList(link, imgSrc, titles, rating, judgeNum, inq, detail))
-    return datalist
-
-
-def saveData(savePath):
-    """
-    保存数据
-    @param savePath:
-    @return:
-    """
-    print("save ...")
-
-
-if __name__ == '__main__':
-    main()
+    str = str.replace("。", "")  # 去除中文句号
+    str = str.replace(u"\xa0", " ")  # 去除连续不可分割空格 NBSP /xa0
+    str = str.replace("<br/>", "")  # 去除<br/>
+    str = str.replace("\n", "")  # 去除/n
+    str = re.sub(" +", " ", str)  # 替换连续不可分割空格
+    return str.strip()
 
 
 def putIntoList(link, imgSrc, titles, rating, judgeNum, inq, detail):
     """
     把几个信息存入到一个列表里
-    @param link:
-    @param imgSrc:
-    @param titles:
-    @param rating:
-    @param judgeNum:
-    @param inq:
-    @param detail:
-    @return: a integrated list
+    Args:
+        link:
+        imgSrc:
+        titles:
+        rating:
+        judgeNum:
+        inq:
+        detail:
+
+    Returns: a integrated list
+
     """
     data = []
 
@@ -117,7 +98,7 @@ def putIntoList(link, imgSrc, titles, rating, judgeNum, inq, detail):
         ctitle = titles[0]  # 中文名
         data.append(ctitle)
         otitle = titles[1].replace("/", "")  # 外文名
-        data.append(otitle)
+        data.append(normalize(otitle))
     else:
         data.append(titles[0])
         data.append(" ")
@@ -127,13 +108,59 @@ def putIntoList(link, imgSrc, titles, rating, judgeNum, inq, detail):
     data.append(judgeNum)
 
     if len(inq) != 0:  # 可能不存在一句话评价
-        inq = inq[0].replace("。", "")  # 去掉句号
-        data.append(inq)
+        data.append(normalize(inq[0]))
     else:
         data.append(" ")
-    data.append(inq)
 
-    dt = detail.sub('<br(\s+?)/>(\s+?)', " ", detail)  # 去掉<br/>
-    data.append(dt.strip())
+    data.append(normalize(detail))
 
     return data
+
+
+def getData(baseurl):
+    """
+    获取数据
+    Args:
+        baseurl:
+
+    Returns:
+
+    """
+    datalist = []
+    # 共10*25条
+    for i in range(0, 10):
+        url = baseurl + str(i * 25)
+        html = askURL(url)
+        # 解析html
+        soup = BeautifulSoup(html, "html.parser")
+        for item in soup.find_all('div', {"class": "item"}):
+            item = str(item)
+            # print(item) #测试节点1，能够输出单个item
+            link = re.findall(findLink, item)[0]  # 找到每部影片唯一的详情链接
+            imgSrc = re.findall(findImgSrc, item)[0]
+            titles = re.findall(findTitle, item)
+            rating = re.findall(findRating, item)[0]
+            judgeNum = re.findall(findJudge, item)[0]
+            inq = re.findall(findInq, item)
+            detail = re.findall(findDetail, item)[0]
+
+            data = putIntoList(link, imgSrc, titles, rating, judgeNum, inq, detail)
+            datalist.append(data)
+    print(datalist)  # 测试点2，打印所有数据
+    return datalist
+
+
+def saveData(savePath):
+    """
+    保存数据
+    Args:
+        savePath:
+
+    Returns:
+
+    """
+    print("save ...")
+
+
+if __name__ == '__main__':
+    main()
