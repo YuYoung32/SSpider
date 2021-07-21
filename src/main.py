@@ -4,7 +4,6 @@ import urllib.request
 import urllib.error
 import xlwt
 import sqlite3
-import os
 
 
 def main():
