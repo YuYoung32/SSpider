@@ -8,10 +8,8 @@ import sqlite3
 
 def main():
     baseurl = "https://movie.douban.com/top250?start="
-    savepath = "../"  # todo
-    getData(baseurl)
-    # datalist = getData(baseurl)
-    # saveData(savepath)
+    savepath = "../outData/outPutXls.xls"
+    saveData(savepath, getData(baseurl))
 
 
 # region 全局变量，正则表达式，指定模式
@@ -38,8 +36,9 @@ def askURL(url):
     """
     得到一个URL的网页内容
     @param url:
-    @return: html which url contains
+    @return: request html from the url
     """
+    print("ask url...")
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.70"
     }
@@ -123,17 +122,20 @@ def getData(baseurl):
     Args:
         baseurl:
 
-    Returns:
+    Returns: a 2-dimension datalist(film_amount * data_item)
 
     """
     datalist = []
     # 共10*25条
+    cnt = 0
     for i in range(0, 10):
         url = baseurl + str(i * 25)
         html = askURL(url)
         # 解析html
         soup = BeautifulSoup(html, "html.parser")
         for item in soup.find_all('div', {"class": "item"}):
+            cnt = cnt + 1
+            print("get data item" + str(cnt))
             item = str(item)
             # print(item) #测试节点1，能够输出单个item
             link = re.findall(findLink, item)[0]  # 找到每部影片唯一的详情链接
@@ -146,20 +148,30 @@ def getData(baseurl):
 
             data = putIntoList(link, imgSrc, titles, rating, judgeNum, inq, detail)
             datalist.append(data)
-    print(datalist)  # 测试点2，打印所有数据
+    # print(datalist)  # 测试点2，打印所有数据
     return datalist
 
 
-def saveData(savePath):
+def saveData(savePath, datalist):
     """
     保存数据
     Args:
         savePath:
-
-    Returns:
+        datalist: a 2-dimension datalist
 
     """
+    book = xlwt.Workbook(encoding="utf-8", style_compression=0)
+    sheet = book.add_sheet('sheet1', cell_overwrite_ok=True)  # 可以覆写
+    col = ("详情链接", "图片链接", "影片中文名", "影片外国名", "评分", "评价数", "概况", "相关信息")
+    for i in range(0, 8):
+        sheet.write(0, i, col[i])
+    for i in range(0, 250):
+        data = datalist[i]  # 一部电源的信息
+        for j in range(0, 8):
+            sheet.write(i + 1, j, data[j])
     print("save ...")
+    book.save(savePath)  # 保存文件
+    print("saved! file path: " + savePath)
 
 
 if __name__ == '__main__':
