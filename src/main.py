@@ -4,12 +4,16 @@ import urllib.request
 import urllib.error
 import xlwt
 import sqlite3
+import os
 
 
 def main():
     baseurl = "https://movie.douban.com/top250?start="
-    savepath = "../outData/outPutXls.xls"
-    saveData(savepath, getData(baseurl))
+    savepathExcel = "../outData/outPutXls.xls"
+    savepathDB = "../outData/outputDatabase.db"
+    edition = "database"  # excel or database
+    saveData(savepathExcel, savepathDB, edition, getData(baseurl))
+    print("爬取完成")
 
 
 # region 全局变量，正则表达式，指定模式
@@ -152,26 +156,80 @@ def getData(baseurl):
     return datalist
 
 
-def saveData(savePath, datalist):
+def initDatabase(savePathDB):
     """
-    保存数据
+    初始化数据库，在指定位置创建数据库，并建表
     Args:
-        savePath:
-        datalist: a 2-dimension datalist
+        savePathDB:
 
     """
-    book = xlwt.Workbook(encoding="utf-8", style_compression=0)
-    sheet = book.add_sheet('sheet1', cell_overwrite_ok=True)  # 可以覆写
-    col = ("详情链接", "图片链接", "影片中文名", "影片外国名", "评分", "评价数", "概况", "相关信息")
-    for i in range(0, 8):
-        sheet.write(0, i, col[i])
-    for i in range(0, 250):
-        data = datalist[i]  # 一部电源的信息
-        for j in range(0, 8):
-            sheet.write(i + 1, j, data[j])
-    print("save ...")
-    book.save(savePath)  # 保存文件
-    print("saved! file path: " + savePath)
+    print("初始化数据库...")
+    conn = sqlite3.connect(savePathDB)
+    print("连接成功")
+    cur = conn.cursor()
+    initSql = """
+        create table if not exists filmData(
+            id integer primary key autoincrement,
+            info_link text ,
+            pic_link text ,
+            ch_name varchar ,
+            en_name varchar ,
+            score numeric ,
+            rated integer ,
+            introduction text,
+            info text
+        )
+    """
+    cur.execute(initSql)
+    conn.commit()
+    conn.close()
+    print("初始化完成")
+
+
+def saveData(savePathExcel, savePathDB, edition, datalist):
+    """
+    保存数据到excel或database
+    Args:
+        savePathExcel:
+        datalist:
+        edition: a string: "excel" or "database"
+
+    """
+    if edition == "excel":
+        book = xlwt.Workbook(encoding="utf-8", style_compression=0)
+        sheet = book.add_sheet('sheet1', cell_overwrite_ok=True)  # 可以覆写
+        col = ("详情链接", "图片链接", "影片中文名", "影片外国名", "评分", "评价数", "概况", "相关信息")
+        for i in range(0, 8):
+            sheet.write(0, i, col[i])
+        for i in range(0, 250):
+            data = datalist[i]  # 一部电源的信息
+            for j in range(0, 8):
+                sheet.write(i + 1, j, data[j])
+        print("save ...")
+        book.save(savePathExcel)  # 保存文件
+        print("saved! file path: " + savePathExcel)
+    elif edition == "database":
+        initDatabase(savePathDB)
+        conn = sqlite3.connect(savePathDB)
+        cur = conn.cursor()
+        cnt = 0
+        for data in datalist:  # 取出一行
+            for index in range(len(data)):  # 对一行中的每一个数据项操作
+                data[index] = '"' + data[index] + '"'  # 把一个数据项整个转换成数据库的字符串形式，"item"
+                datastr = ",".join(data)  # 列表中的元素用','相连，连接成一个字符串
+            insertSql = '''
+            insert into filmData
+            (info_link, pic_link, ch_name, en_name, score, rated, introduction, info)
+            values(%s)''' % datastr
+            cur.execute(insertSql)
+            conn.commit()
+            cnt = cnt + 1
+            print("insert into item" + str(cnt))
+        cur.close()
+        conn.close()
+
+    else:
+        print("failed! the wrong edition!")
 
 
 if __name__ == '__main__':
